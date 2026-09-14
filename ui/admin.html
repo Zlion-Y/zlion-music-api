@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音源管理 · zlion-music-api</title>
+<link rel="stylesheet" href="{{.Base}}/assets/main.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <span class="dot" id="dot"></span>
+      <span class="name">音源管理</span>
+      <span class="ver" id="ver"></span>
+    </div>
+    <nav>
+      <a href="{{.Base}}/">状态页</a>
+      <a href="{{.Base}}/api/health" target="_blank" rel="noopener" style="margin-left:14px">health</a>
+    </nav>
+  </div>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>音源列表</h2>
+      <span class="dim" id="src-summary">读取中…</span>
+    </div>
+    <div id="src-list"></div>
+    <p class="hint">
+      取流<b>不是把所有音源都打一遍</b>：按成绩（成功率、平均耗时）排序，一次最多同时问 3 个，
+      300ms 没结果再放一波；谁先成功就立刻用它，其余在途请求当场掐断。连续失败 3 次的音源会<b>熔断</b> 10 分钟不再打扰。
+      停用只影响参与取流，文件仍留在磁盘上。
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>并行体检</h2>
+      <span class="dim">看哪个音源现在还能出流</span>
+    </div>
+    <div class="row grow">
+      <input id="q" placeholder="网易歌曲 id（最准），或歌名 / 歌名 - 歌手">
+      <select id="q-quality">
+        <option value="128k">128k</option>
+        <option value="320k" selected>320k</option>
+        <option value="flac">flac</option>
+        <option value="flac24bit">flac24bit</option>
+      </select>
+      <button class="primary" id="btn-probe">全部体检</button>
+    </div>
+    <div id="probe-out"></div>
+    <audio id="player" controls style="display:none"></audio>
+  </section>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>上传音源</h2>
+      <span class="dim">可一次选多个 .js</span>
+    </div>
+    <input type="file" id="file" accept=".js,text/javascript,application/javascript" multiple>
+    <div class="row grow" style="margin-top:10px">
+      <input id="paste-name" placeholder="粘贴内容时的文件名，如 my-source.js">
+    </div>
+    <textarea id="paste" placeholder="或者把脚本内容直接粘到这里…"></textarea>
+    <div class="row">
+      <button class="primary" id="btn-upload">上传并生效</button>
+    </div>
+    <p class="hint">
+      同名文件＝更新该音源（只热替换这一个，不影响其它）。上传前会先试跑一次，跑不起来就原样保留旧脚本。
+      脚本会以本服务权限执行并可发起网络请求，请只放可信来源的明文音源脚本。
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>远程地址 / 自动更新</h2>
+      <span class="dim" id="interval"></span>
+    </div>
+    <div class="row grow">
+      <input id="url" placeholder="https://example.com/lx-source.js">
+    </div>
+    <div class="row grow">
+      <input id="url-file" placeholder="保存成哪个文件名，如 remote.js">
+      <button class="primary" id="btn-save">保存并立即更新</button>
+      <button id="btn-fetch">全部检查更新</button>
+    </div>
+    <p class="hint">地址留空并保存＝删除该文件的远程地址。自动更新开着时，所有配了地址的音源都会按间隔检查，内容有变化才热替换。</p>
+  </section>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>缓存 / 重载</h2>
+      <span class="dim" id="cache-info"></span>
+    </div>
+    <div class="row">
+      <button id="btn-reload">重新扫描音源目录</button>
+      <button id="btn-cache">清空缓存</button>
+    </div>
+    <p class="hint">直链缓存默认 15 分钟。换了音源后旧直链可能还在缓存里，清一下立刻生效。</p>
+  </section>
+
+  <details class="card">
+    <summary>令牌（可选，脚本 / curl 用）</summary>
+    <div class="row grow">
+      <input id="token" placeholder="X-Admin-Token">
+      <button id="btn-token">保存到本机</button>
+    </div>
+    <p class="hint">页面已经过登录授权，这里只在「不带登录信息调管理接口」时才需要（比如写脚本自动化）。令牌只存在你浏览器的 localStorage。</p>
+  </details>
+
+  <pre id="log">就绪。</pre>
+
+</div>
+<script>
+const BASE = "{{.Base}}";
+// 页面地址若带了用户名密码（https://u:p@host/admin），相对路径的 fetch 会被浏览器拒绝，所以统一拼绝对地址
+const ORIGIN = location.origin;
+const abs = (p) => ORIGIN + BASE + p;
+const $ = (id) => document.getElementById(id);
+let token = localStorage.getItem('zma_token') || new URLSearchParams(location.search).get('token') || '';
+if (new URLSearchParams(location.search).get('token')) localStorage.setItem('zma_token', token);
+$('token').value = token;
+
+function log(msg, kind) {
+  const el = $('log');
+  const t = new Date().toLocaleTimeString();
+  const cls = kind === 'err' ? 'err-t' : (kind === 'ok' ? 'ok-t' : '');
+  el.innerHTML = '<span class="' + cls + '">[' + t + '] ' + msg + '</span>\n' + el.innerHTML;
+}
+
+async function api(path, opt) {
+  const headers = Object.assign({}, (opt && opt.headers) || {});
+  if (token) headers['X-Admin-Token'] = token;
+  const r = await fetch(abs('/admin/api/' + path), Object.assign({}, opt || {}, { headers }));
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = { ok: false, error: 'HTTP ' + r.status }; }
+  if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderSources(list, stats) {
+  list = list || [];
+  stats = stats || {};
+  const ok = list.filter((e) => e.loaded && !e.error && e.enabled).length;
+  const off = list.filter((e) => !e.enabled).length;
+  const bad = list.filter((e) => e.error).length;
+  $('src-summary').textContent = list.length
+    ? list.length + ' 个音源 · 可用 ' + ok + (off ? ' · 停用 ' + off : '') + (bad ? ' · 异常 ' + bad : '')
+    : '';
+  $('dot').className = 'dot ' + (ok > 0 ? 'ok' : 'err');
+  if (!list.length) {
+    $('src-list').innerHTML = '<p class="hint">还没有音源。上传一个明文 .js 音源脚本就能用起来；没有音源时只能解析网易免费曲。</p>';
+    return;
+  }
+  $('src-list').innerHTML = list.map((e) => {
+    const st = stats[e.file] || {};
+    let pill = !e.enabled ? '<span class="pill">已停用</span>'
+      : (e.error ? '<span class="pill warn">有警告</span>' : '<span class="pill ok">已加载</span>');
+    if (e.enabled && st.quarantined) {
+      pill = '<span class="pill warn">已熔断 ' + Math.ceil((st.quarantineLeft || 0) / 60) + ' 分钟</span>';
+    }
+    // 成绩：成功率 / 平均耗时 / 连续失败
+    let perf = '';
+    if (st.attempts) {
+      perf = '成功率 ' + (st.successRate != null ? st.successRate + '%' : '—') +
+        (st.latencyMs ? ' · 平均 ' + st.latencyMs + 'ms' : '') +
+        (st.consecFails ? ' · 连续失败 ' + st.consecFails + ' 次' : '');
+    } else {
+      perf = '还没用过';
+    }
+    const resetBtn = st.quarantined ? '<button data-act="reset" data-file="' + esc(e.file) + '">解除熔断</button>' : '';
+    return '<div class="src-row">' +
+      '<div class="src-main">' +
+        '<div class="src-title"><b>' + esc(e.name) + '</b><span class="mono dim">' + esc(e.file) + '</span>' + pill + '</div>' +
+        '<div class="dim">声明音源：' + esc((e.sources || []).join('、')) + ' · ' + (e.size || 0) + ' 字节' +
+          (e.remote ? ' · 远程 ' + esc(e.remote) : '') + '</div>' +
+        '<div class="dim">' + esc(perf) + '</div>' +
+        (e.error ? '<div class="err-t mono">' + esc(e.error) + '</div>' : '') +
+      '</div>' +
+      '<div class="src-act">' +
+        resetBtn +
+        '<button data-act="toggle" data-file="' + esc(e.file) + '" data-on="' + (e.enabled ? '0' : '1') + '">' + (e.enabled ? '停用' : '启用') + '</button>' +
+        '<button data-act="del" data-file="' + esc(e.file) + '">删除</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+$('src-list').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-act]');
+  if (!btn) return;
+  const file = btn.dataset.file;
+  btn.disabled = true;
+  try {
+    if (btn.dataset.act === 'toggle') {
+      const j = await api('toggle?file=' + encodeURIComponent(file) + '&enabled=' + btn.dataset.on, { method: 'POST' });
+      refresh();
+      log((btn.dataset.on === '1' ? '已启用 ' : '已停用 ') + file, 'ok');
+    } else if (btn.dataset.act === 'reset') {
+      await api('reset?file=' + encodeURIComponent(file), { method: 'POST' });
+      refresh();
+      log('已解除 ' + file + ' 的熔断，下次取流会重新问它', 'ok');
+    } else {
+      if (!confirm('删除音源 ' + file + ' ？')) { btn.disabled = false; return; }
+      const j = await api('delete?file=' + encodeURIComponent(file), { method: 'POST' });
+      refresh();
+      log('已删除 ' + file, 'ok');
+    }
+  } catch (e) { log('操作失败：' + e.message, 'err'); btn.disabled = false; }
+});
+
+async function refresh() {
+  try {
+    const j = await api('state');
+    renderSources(j.script.list, j.stats);
+    $('interval').textContent = j.script.interval ? '检查间隔 ' + j.script.interval : '';
+    const c = j.cache || {};
+    $('cache-info').textContent = '直链 ' + (c.url || 0) + ' 条 · 元数据 ' + (c.meta || 0) + ' 条';
+    $('ver').textContent = String(j.version || '').split(' ')[0] + (j.uptime ? ' · 运行 ' + j.uptime : '');
+  } catch (e) { log('读取状态失败：' + e.message, 'err'); }
+}
+
+$('btn-reload').onclick = async () => {
+  try { const j = await api('reload', { method: 'POST' }); renderSources(j.script.list); log('已重新扫描音源目录', 'ok'); }
+  catch (e) { log('重载失败：' + e.message, 'err'); }
+};
+
+$('btn-fetch').onclick = async () => {
+  try {
+    const j = await api('fetch', { method: 'POST' });
+    renderSources(j.script.list);
+    log(j.changed ? '有音源被更新并已热替换' : '所有远程音源都无变化', 'ok');
+  } catch (e) { log('更新失败：' + e.message, 'err'); }
+};
+
+$('btn-save').onclick = async () => {
+  try {
+    const j = await api('url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: $('url').value.trim(), file: $('url-file').value.trim() || 'remote.js' }),
+    });
+    renderSources(j.script.list);
+    if (j.updateError) log('地址已保存，但拉取失败：' + j.updateError, 'err');
+    else log(j.url ? ('已保存远程地址 → ' + j.file + (j.changed ? '（内容有更新，已生效）' : '（内容无变化）')) : ('已删除 ' + j.file + ' 的远程地址'), 'ok');
+  } catch (e) { log('保存失败：' + e.message, 'err'); }
+};
+
+$('btn-upload').onclick = async () => {
+  const files = [...$('file').files];
+  const pasted = $('paste').value.trim();
+  if (!files.length && !pasted) { log('请选择文件或粘贴内容', 'err'); return; }
+  $('btn-upload').disabled = true;
+  try {
+    if (files.length) {
+      const fd = new FormData();
+      files.forEach((f) => fd.append('files', f));
+      const j = await api('upload', { method: 'POST', body: fd });
+      (j.uploaded || []).forEach((u) => log(u.error ? ('失败 ' + u.file + '：' + u.error) : ('已上传并生效 ' + u.file), u.error ? 'err' : 'ok'));
+      renderSources(j.script.list);
+    } else {
+      const name = $('paste-name').value.trim() || 'pasted.js';
+      const j = await api('upload?name=' + encodeURIComponent(name), {
+        method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: pasted,
+      });
+      renderSources(j.script.list);
+      log('已应用粘贴的脚本 → ' + name, 'ok');
+    }
+    $('paste').value = '';
+    $('file').value = '';
+  } catch (e) { log('上传失败：' + e.message, 'err'); }
+  $('btn-upload').disabled = false;
+};
+
+$('btn-cache').onclick = async () => {
+  try {
+    const j = await api('cache', { method: 'POST' });
+    log('缓存已清空（直链 ' + (j.cleared.url || 0) + ' 条、元数据 ' + (j.cleared.meta || 0) + ' 条）', 'ok');
+    refresh();
+  } catch (e) { log('清空失败：' + e.message, 'err'); }
+};
+
+$('btn-token').onclick = () => {
+  token = $('token').value.trim();
+  localStorage.setItem('zma_token', token);
+  log('令牌已保存到本机', 'ok');
+  refresh();
+};
+
+$('btn-probe').onclick = async () => {
+  const raw = $('q').value.trim();
+  if (!raw) { log('先填个歌曲 id 或歌名', 'err'); return; }
+  const quality = $('q-quality').value;
+  let qs;
+  if (/^\d+$/.test(raw)) {
+    qs = 'id=' + encodeURIComponent(raw) + '&source=wy';
+  } else {
+    const parts = raw.split(/\s+-\s+|\s+—\s+/);
+    qs = parts.length > 1
+      ? 'name=' + encodeURIComponent(parts[0]) + '&artist=' + encodeURIComponent(parts.slice(1).join(' ')) + '&source=wy'
+      : 'name=' + encodeURIComponent(raw) + '&source=wy';
+  }
+  const out = $('probe-out');
+  out.innerHTML = '<p class="hint">正在并行问所有音源…</p>';
+  $('player').style.display = 'none';
+  try {
+    const j = await api('probe?' + qs + '&quality=' + encodeURIComponent(quality), { method: 'POST' });
+    const rows = (j.results || []).map((r) => {
+      let status = r.ok ? '<span class="ok-t">✅ 可用</span>' : '<span class="err-t">❌ 失败</span>';
+      if (r.quarantined) { status += ' <span class="pill warn">熔断中</span>' }
+      const detail = r.ok ? (r.elapsedMs + 'ms') : esc(r.error || '');
+      const act = r.ok ? '<button data-play="' + esc(r.url) + '">试听</button>' : '';
+      return '<tr><td>' + status + '<div><b>' + esc(r.name) + '</b> <span class="mono dim">' + esc(r.file) + '</span></div></td>' +
+             '<td class="mono">' + detail + '</td><td>' + act + '</td></tr>';
+    }).join('');
+    const head = j.matched ? '<p class="hint">匹配到：' + esc(j.matched) + '（id ' + esc(j.queryId) + '），总耗时 ' + j.elapsed + 'ms</p>'
+      : (j.queryId ? '<p class="hint">歌曲 id ' + esc(j.queryId) + '，总耗时 ' + j.elapsed + 'ms</p>' : '');
+    out.innerHTML = head + '<table><thead><tr><th>音源</th><th>结果</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+    const okCount = (j.results || []).filter((r) => r.ok).length;
+    log('体检完成：' + okCount + '/' + (j.results || []).length + ' 个音源可用', okCount ? 'ok' : 'err');
+  } catch (e) {
+    out.innerHTML = '<p class="err-t">' + esc(e.message) + '</p>';
+    log('体检失败：' + e.message, 'err');
+  }
+};
+
+$('probe-out').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-play]');
+  if (!btn) return;
+  const p = $('player');
+  p.src = btn.dataset.play;
+  p.style.display = 'block';
+  p.play().catch(() => {});
+});
+
+refresh();
+setInterval(refresh, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+[Unit]
+Description=zlion-music-api (music direct-link proxy)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# 手动套用本模板时目录可能不存在，systemd 会因 CHDIR 失败而启动不了，故先创建
+ExecStartPre=/bin/mkdir -p /opt/zlion-music-api
+WorkingDirectory=/opt/zlion-music-api
+# 只监听回环、由 Nginx/Caddy 反代出去；IPv6 全接口用 -addr "[::]:446"（低位端口需 root）
+ExecStart=/usr/local/bin/zlion-music-api \
+  -addr 127.0.0.1:8787 \
+  -script /opt/zlion-music-api/source.js \
+  -config /opt/zlion-music-api/config.json \
+  -script-url "" \
+  -script-interval 6h \
+  -allow "https://www.zlion.top,https://zlion.top" \
+  -quality 320k \
+  -ttl 15m
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

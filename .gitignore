@@ -1,0 +1,17 @@
+# 构建产物
+dist/
+*.exe
+*.log
+
+# 运行时配置：含管理令牌与控制台密码，绝对不要进仓库
+zlion-music-api.json
+config.json
+
+# 音源脚本：第三方作品，且可能含作者水印/密钥，不进仓库
+sources/
+source.js
+*.tmp
+
+# 本地探针
+.idea/
+.vscode/

@@ -1,0 +1,8 @@
+# Caddy 反代（自动 HTTPS）。Caddy 默认原样转发 Origin/Referer，无需额外配置。
+#
+# 主页是 HTTPS，浏览器禁止它请求 http:// 资源，所以对外的地址必须是 https。
+# 想用非标端口：music-api.zlion.top:446 { ... }（域名 AAAA 指向你的 IPv6）
+
+music-api.zlion.top {
+    reverse_proxy 127.0.0.1:8787
+}

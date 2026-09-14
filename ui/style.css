@@ -1,0 +1,174 @@
+/* zlion-music-api 控制台共用样式（暗色优先，跟随系统切亮色） */
+:root {
+  --bg: #0b0d12;
+  --panel: #12151d;
+  --panel-2: #171b25;
+  --border: #242a37;
+  --fg: #e8ebf2;
+  --dim: #98a1b3;
+  --accent: #5b8cff;
+  --ok: #39d98a;
+  --warn: #ffb020;
+  --err: #ff5c5c;
+  --radius: 14px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f6f9;
+    --panel: #ffffff;
+    --panel-2: #f1f3f7;
+    --border: #e2e6ee;
+    --fg: #191c23;
+    --dim: #67718a;
+    --accent: #2f6bff;
+    --ok: #12a15c;
+    --warn: #b37200;
+    --err: #d92d20;
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 880px; margin: 0 auto; padding: 26px 20px 72px; }
+
+/* 顶栏 */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: .01em; }
+.brand .name { font-size: 16px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 20%, transparent); }
+.dot.err { background: var(--err); box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 20%, transparent); }
+.ver { color: var(--dim); font-size: 12.5px; font-family: var(--mono); }
+.top nav a { color: var(--dim); text-decoration: none; font-size: 14px; }
+.top nav a:hover { color: var(--accent); }
+
+/* 卡片 */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.card-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.card-hd h2 { margin: 0; font-size: 14.5px; font-weight: 650; }
+.card-hd .dim, .hint { color: var(--dim); font-size: 12.5px; }
+.hint { margin: 10px 0 0; }
+
+/* 键值表 */
+.kv { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 7px 16px; margin: 0; font-size: 14px; }
+.kv dt { color: var(--dim); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.kv dd.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+
+/* 表单 */
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.row:first-child { margin-top: 0; }
+.row.grow > input[type="text"], .row.grow > input:not([type]) { flex: 1 1 300px; }
+
+input, select, textarea, button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  outline: none;
+}
+input[type="text"], input:not([type]), textarea { width: 100%; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--dim); }
+textarea { min-height: 116px; resize: vertical; font-family: var(--mono); font-size: 12.5px; }
+input[type="file"] { padding: 7px 10px; width: 100%; }
+input[type="file"]::file-selector-button {
+  font: inherit; font-size: 13px; margin-right: 10px; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--fg); cursor: pointer;
+}
+select { min-width: 96px; }
+
+button { cursor: pointer; transition: border-color .15s, background .15s, opacity .15s; white-space: nowrap; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 550; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: .55; cursor: default; }
+
+.sw { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 13.5px; white-space: nowrap; }
+.sw input { width: 15px; height: 15px; accent-color: var(--accent); }
+
+/* 状态徽标 */
+.pill {
+  display: inline-block; padding: 2px 9px; border-radius: 99px;
+  font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); color: var(--dim);
+}
+.pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.pill.err { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.ok-t { color: var(--ok); }
+.err-t { color: var(--err); }
+.dim { color: var(--dim); }
+
+/* 接口表 */
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--dim); font-weight: 500; font-size: 12.5px; }
+tr:last-child td { border-bottom: none; }
+td code { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+
+/* 试听结果 */
+.test-out { margin-top: 12px; font-size: 13.5px; }
+.test-out .kv { grid-template-columns: 78px minmax(0, 1fr); margin-bottom: 8px; }
+audio { width: 100%; margin-top: 6px; }
+
+/* 日志 */
+#log {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+  max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0;
+}
+
+details.card > summary { cursor: pointer; font-size: 14.5px; font-weight: 650; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::after { content: " ▸"; color: var(--dim); font-weight: 400; }
+details.card[open] > summary::after { content: " ▾"; }
+
+a { color: var(--accent); }
+
+@media (max-width: 560px) {
+  .wrap { padding: 20px 14px 64px; }
+  .card { padding: 16px; }
+  .kv { grid-template-columns: 1fr; gap: 2px 0; }
+  .kv dt { font-size: 12.5px; margin-top: 8px; }
+  .row > button { flex: 1 1 auto; }
+}
+
+/* 音源列表行 */
+.src-row {
+  display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.src-row:last-child { border-bottom: none; }
+.src-main { min-width: 0; flex: 1 1 auto; }
+.src-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.src-title .mono { font-size: 12px; }
+.src-act { display: flex; gap: 6px; flex: none; }
+.src-act button { padding: 6px 10px; font-size: 13px; }
+@media (max-width: 560px) {
+  .src-row { flex-direction: column; gap: 8px; }
+  .src-act { width: 100%; }
+  .src-act button { flex: 1 1 auto; }
+}

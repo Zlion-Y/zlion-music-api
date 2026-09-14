@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>zlion-music-api</title>
+<link rel="stylesheet" href="{{.Base}}/assets/main.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <span class="dot {{if .Healthy}}ok{{else}}err{{end}}"></span>
+      <span class="name">zlion-music-api</span>
+      <span class="ver">{{.Version}}</span>
+    </div>
+    <nav><a href="{{.Base}}/admin">管理页</a></nav>
+  </div>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>运行状态</h2>
+      <span class="pill {{if .Healthy}}ok{{else}}err{{end}}">{{if .Healthy}}运行中{{else}}脚本未加载{{end}}</span>
+    </div>
+    <dl class="kv">
+      <dt>已运行</dt><dd>{{.Uptime}}</dd>
+      <dt>音源目录</dt><dd>{{if .ScriptPath}}<span class="mono">{{.ScriptPath}}</span>{{else}}<span class="dim">未配置</span>{{end}}</dd>
+      <dt>已装音源</dt><dd>{{if .Sources}}{{.Sources}}{{else}}<span class="dim">—（未装音源，只有内置网易免费曲）</span>{{end}}</dd>
+      <dt>免登录接口</dt><dd>{{.PublicAPI}}</dd>
+      <dt>允许的来源</dt><dd class="mono">{{.Allow}}</dd>
+      {{if .LastError}}<dt>上次错误</dt><dd class="err-t">{{.LastError}}</dd>{{end}}
+    </dl>
+  </section>
+
+  <section class="card">
+    <div class="card-hd">
+      <h2>接口</h2>
+      <span class="dim">页面与标了「需登录」的接口都要控制台账号</span>
+    </div>
+    <table>
+      <thead><tr><th>路径</th><th>说明</th><th>访问</th></tr></thead>
+      <tbody>
+        <tr><td><code>/api/url?id=&amp;source=wy&amp;quality=320k</code></td><td>取播放直链（前端用这个）</td><td>{{if .URLOpen}}<span class="pill ok">公开</span>{{else}}<span class="pill">需登录</span>{{end}}</td></tr>
+        <tr><td><code>/api/health</code></td><td>状态与版本</td><td>{{if .HealthOpen}}<span class="pill ok">公开</span>{{else}}<span class="pill">需登录</span>{{end}}</td></tr>
+        <tr><td><code>/api/search?q=&amp;source=wy</code></td><td>搜索（内置网易）</td><td><span class="pill">需登录</span></td></tr>
+        <tr><td><code>/api/lyric?id=</code></td><td>歌词</td><td><span class="pill">需登录</span></td></tr>
+        <tr><td><code>/api/pic?id=</code></td><td>封面</td><td><span class="pill">需登录</span></td></tr>
+        <tr><td><code>/api/playlist?id=</code></td><td>网易歌单曲目</td><td><span class="pill">需登录</span></td></tr>
+        <tr><td><code>/admin</code></td><td>音源管理（多音源上传 / 并行体检 / 远程更新）</td><td><span class="pill">需登录</span></td></tr>
+      </tbody>
+    </table>
+    <p class="hint">公开接口仍按来源白名单放行：只有上表列出的来源（Origin / Referer）能调，无来源头的请求一律拒绝。</p>
+  </section>
+
+  <section class="card">
+    <div class="card-hd"><h2>它是什么</h2></div>
+    <p class="hint" style="font-size:13.5px">
+      <b>不中转音频流</b>的音乐直链代理：只做「搜索 / 取播放直链 / 歌词 / 封面」，返回各平台 CDN 的原始地址，
+      浏览器直接去拉。音源脚本（洛雪自定义源格式）在服务端跑，可在管理页上传或填远程地址自动更新。
+      未配置脚本时只能解析网易免费曲，VIP / 版权受限曲目需要音源脚本。
+    </p>
+  </section>
+
+</div>
+</body>
+</html>
