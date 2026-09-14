@@ -26,6 +26,25 @@ Go 单二进制、无 CGO、无运行时依赖，风格与 [fileserver](https://
 
 也就是说：**不配脚本也能跑，但只有免费曲**；要拿 VIP / 版权受限曲目的直链，必须配一个音源脚本。
 
+## 下载
+
+不想自己编译就直接下预编译的单文件（无运行时依赖）：
+
+**<https://github.com/Zlion-Y/zlion-music-api/releases>**
+
+| 文件 | 适用 |
+| --- | --- |
+| `zlion-music-api_linux_amd64` | 常见 x86_64 Linux 服务器 |
+| `zlion-music-api_linux_arm64` | ARM64（Armbian 盒子、树莓派 4/5、各类 ARM 小主机） |
+| `zlion-music-api_linux_armv7` | 32 位 ARM（老盒子、路由器） |
+| `zlion-music-api_windows_amd64.exe` | Windows |
+| `zlion-music-api_darwin_arm64` | Apple Silicon macOS |
+
+```bash
+chmod +x zlion-music-api_linux_amd64
+./zlion-music-api_linux_amd64 -addr 127.0.0.1:8787
+```
+
 ## 快速开始
 
 ```bash
