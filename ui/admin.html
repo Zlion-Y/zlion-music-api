@@ -311,10 +311,15 @@ $('btn-probe').onclick = async () => {
     const rows = (j.results || []).map((r) => {
       let status = r.ok ? '<span class="ok-t">✅ 可用</span>' : '<span class="err-t">❌ 失败</span>';
       if (r.quarantined) { status += ' <span class="pill warn">熔断中</span>' }
+      if (!r.enabled) { status = '<span class="pill">已停用</span>' }
       const detail = r.ok ? (r.elapsedMs + 'ms') : esc(r.error || '');
-      const act = r.ok ? '<button data-play="' + esc(r.url) + '">试听</button>' : '';
-      return '<tr><td>' + status + '<div><b>' + esc(r.name) + '</b> <span class="mono dim">' + esc(r.file) + '</span></div></td>' +
-             '<td class="mono">' + detail + '</td><td>' + act + '</td></tr>';
+      // 就在这一行给操作按钮，省得翻回上面的音源列表去对着删
+      let act = r.ok ? '<button data-play="' + esc(r.url) + '">试听</button>' : '';
+      act += '<button data-act="toggle" data-file="' + esc(r.file) + '" data-on="' + (r.enabled ? '0' : '1') + '">' + (r.enabled ? '停用' : '启用') + '</button>';
+      act += '<button data-act="del" data-file="' + esc(r.file) + '">删除</button>';
+      return '<tr data-file="' + esc(r.file) + '"><td><span class="probe-status">' + status + '</span>' +
+             '<div><b>' + esc(r.name) + '</b> <span class="mono dim">' + esc(r.file) + '</span></div></td>' +
+             '<td class="mono">' + detail + '</td><td class="probe-act">' + act + '</td></tr>';
     }).join('');
     const head = j.matched ? '<p class="hint">匹配到：' + esc(j.matched) + '（id ' + esc(j.queryId) + '），总耗时 ' + j.elapsed + 'ms</p>'
       : (j.queryId ? '<p class="hint">歌曲 id ' + esc(j.queryId) + '，总耗时 ' + j.elapsed + 'ms</p>' : '');
@@ -327,13 +332,43 @@ $('btn-probe').onclick = async () => {
   }
 };
 
-$('probe-out').addEventListener('click', (ev) => {
-  const btn = ev.target.closest('button[data-play]');
+$('probe-out').addEventListener('click', async (ev) => {
+  const play = ev.target.closest('button[data-play]');
+  if (play) {
+    const p = $('player');
+    p.src = play.dataset.play;
+    p.style.display = 'block';
+    p.play().catch(() => {});
+    return;
+  }
+  const btn = ev.target.closest('button[data-act]');
   if (!btn) return;
-  const p = $('player');
-  p.src = btn.dataset.play;
-  p.style.display = 'block';
-  p.play().catch(() => {});
+  const file = btn.dataset.file;
+  const tr = btn.closest('tr');
+  btn.disabled = true;
+  try {
+    if (btn.dataset.act === 'toggle') {
+      const on = btn.dataset.on === '1';
+      await api('toggle?file=' + encodeURIComponent(file) + '&enabled=' + btn.dataset.on, { method: 'POST' });
+      log((on ? '已启用 ' : '已停用 ') + file, 'ok');
+      const st = tr && tr.querySelector('.probe-status');
+      if (st) {
+        st.innerHTML = on ? '<span class="ok-t">✅ 已启用</span>' : '<span class="pill">已停用</span>';
+      }
+      btn.textContent = on ? '停用' : '启用';
+      btn.dataset.on = on ? '0' : '1';
+      refresh();
+    } else {
+      if (!confirm('删除音源 ' + file + ' ？')) { btn.disabled = false; return; }
+      await api('delete?file=' + encodeURIComponent(file), { method: 'POST' });
+      log('已删除 ' + file, 'ok');
+      if (tr) tr.remove();
+      refresh();
+    }
+  } catch (e) {
+    log('操作失败：' + e.message, 'err');
+  }
+  btn.disabled = false;
 });
 
 refresh();

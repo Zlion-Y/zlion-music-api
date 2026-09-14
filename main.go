@@ -75,6 +75,8 @@ type Config struct {
 	ResolveConcurrency int           // 取流时最多同时问几个音源
 	ResolveHedge       time.Duration // 一波没结果就再放一波的间隔
 	Quarantine         time.Duration // 连续失败后的熔断时长
+	Verify             bool          // 校验音源返回的直链是否真能拉到音频
+	VerifyTimeout      time.Duration // 单个直链的校验超时
 	TrustProxy         bool          // 反代在后端前面时打开，用 XFF/X-Real-IP 取真实客户端 IP
 	UIUser             string        // 控制台（首页/管理页/非公开接口）的登录用户
 	UIPass             string        // 控制台登录密码，留空自动生成并写入配置文件
@@ -136,6 +138,8 @@ func initFlags() {
 	flag.IntVar(&cfg.ResolveConcurrency, "resolve-concurrency", 3, "取流时最多同时问几个音源（按成绩优先，赢家一出就掐掉其余）")
 	flag.DurationVar(&cfg.ResolveHedge, "resolve-hedge", 300*time.Millisecond, "一波音源没结果时，再放一波的间隔")
 	flag.DurationVar(&cfg.Quarantine, "quarantine", 10*time.Minute, "音源连续失败 3 次后的熔断时长，期间不再问它；0 表示不熔断")
+	flag.BoolVar(&cfg.Verify, "verify", true, "校验音源返回的直链是否真能拉到音频（关掉快一点，但可能拿到死链）")
+	flag.DurationVar(&cfg.VerifyTimeout, "verify-timeout", 5*time.Second, "单个直链的校验超时")
 	flag.StringVar(&cfg.ScriptPath, "script", "source.js", "兼容用：单文件模式的音源路径（也会被当作一个音源加载）")
 	flag.StringVar(&cfg.ScriptURL, "script-url", "", "远程音源脚本地址，填了即可自动更新")
 	flag.DurationVar(&cfg.ScriptEvery, "script-interval", 6*time.Hour, "自动检查脚本更新的间隔，0 表示只手动更新")
@@ -1518,6 +1522,13 @@ func resolveURL(ctx context.Context, source, id, name, artist, quality string) (
 			name, artist = n2, a2
 		}
 	}
+	// 反过来只给了歌名时，先搜一个 id 出来——很多音源脚本只认 id，
+	// 缺了它就直接报"缺少参数: songId/songmid/id"
+	if id == "" && source == "wy" && name != "" {
+		if list, _, err := wySearch(ctx, strings.TrimSpace(name+" "+artist), 1, 1); err == nil && len(list) > 0 {
+			id = list[0].ID
+		}
+	}
 
 	var lastErr error
 
@@ -1559,6 +1570,11 @@ func resolveURL(ctx context.Context, source, id, name, artist, quality string) (
 	// 2) 网易官方（免费曲可用；VIP 曲通常返回 null，需要音源脚本）
 	if source == "wy" && id != "" {
 		if link, err := wySongURL(ctx, id, quality); err == nil {
+			if verr := verifyIfEnabled(ctx, link); verr != nil {
+				lastErr = fmt.Errorf("网易直链校验不通过: %w", verr)
+				debugf("网易直链校验不通过: %v", verr)
+				return nil, lastErr
+			}
 			r := &urlResult{URL: link, Source: "wy", Via: "wy", Quality: quality, Name: name, Artist: artist, Expire: int(cfg.TTL.Seconds())}
 			if b, e := json.Marshal(r); e == nil {
 				urlCache.Set(key, b)

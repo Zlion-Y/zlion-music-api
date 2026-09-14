@@ -18,9 +18,18 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
+
+// 校验开关：默认开；关掉就退化成"只要返回了 http 地址就算成功"
+func verifyIfEnabled(ctx context.Context, link string) error {
+	if !cfg.Verify {
+		return nil
+	}
+	return verifyAudio(ctx, link)
+}
 
 // 体检结果里的单条
 type probeResult struct {
@@ -190,6 +199,15 @@ func resolveWithHedge(ctx context.Context, source, action string, info map[strin
 		go func() {
 			t0 := time.Now()
 			v, err := e.Host.invoke(roundCtx, source, action, info)
+			// 关键：返回了字符串不算成功，得确认这个直链真的能拉到音频才算。
+			// 否则"最快返回的解析接口地址"会永远胜出，死链还进不了熔断。
+			if err == nil && action == "musicUrl" {
+				if link, isURL := v.(string); isURL && link != "" {
+					if verr := verifyIfEnabled(roundCtx, link); verr != nil {
+						v, err = nil, verr
+					}
+				}
+			}
 			ms := float64(time.Since(t0).Milliseconds())
 			// 本轮已经被别人赢了、这个请求是被取消的：不算它的失败，
 			// 否则健康音源会因为"竞速输了"被记成失败甚至熔断
@@ -294,20 +312,23 @@ func probeAllSources(ctx context.Context, source, action string, info map[string
 			defer func() { <-sem }()
 			t0 := time.Now()
 			v, err := e.Host.invoke(ctx, source, action, info)
-			ms := time.Since(t0).Milliseconds()
-			results[i].Elapsed = ms
 			ok := false
 			if err != nil {
 				results[i].Error = err.Error()
-			} else if link, isURL := v.(string); isURL && len(link) > 7 && (link[:4] == "http") {
-				ok = true
-				results[i].OK = true
-				results[i].URL = link
-				results[i].Via = "script"
+			} else if link, isURL := v.(string); isURL && strings.HasPrefix(link, "http") {
+				if verr := verifyIfEnabled(ctx, link); verr != nil {
+					results[i].Error = "直链校验不通过：" + verr.Error()
+				} else {
+					ok = true
+					results[i].OK = true
+					results[i].URL = link
+					results[i].Via = "script"
+				}
 			} else {
 				results[i].Error = "没有返回可用直链"
 			}
-			e.stats.record(ok, float64(ms), err)
+			results[i].Elapsed = time.Since(t0).Milliseconds()
+			e.stats.record(ok, float64(results[i].Elapsed), err)
 			results[i].Stats = e.stats.snapshot()
 		}(i, e)
 	}

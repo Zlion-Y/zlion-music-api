@@ -172,3 +172,11 @@ a { color: var(--accent); }
   .src-act { width: 100%; }
   .src-act button { flex: 1 1 auto; }
 }
+
+/* 体检结果里那一行的操作按钮 */
+.probe-act { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.probe-act button { padding: 6px 10px; font-size: 13px; }
+@media (max-width: 560px) {
+  .probe-act { justify-content: flex-start; }
+  .probe-act button { flex: 1 1 auto; }
+}
