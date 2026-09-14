@@ -203,8 +203,11 @@ func resolveWithHedge(ctx context.Context, source, action string, info map[strin
 			// 否则"最快返回的解析接口地址"会永远胜出，死链还进不了熔断。
 			if err == nil && action == "musicUrl" {
 				if link, isURL := v.(string); isURL && link != "" {
+					link = httpsifyURL(link) // 只把 https 直链交给浏览器
 					if verr := verifyIfEnabled(roundCtx, link); verr != nil {
 						v, err = nil, verr
+					} else {
+						v = link
 					}
 				}
 			}
@@ -316,6 +319,7 @@ func probeAllSources(ctx context.Context, source, action string, info map[string
 			if err != nil {
 				results[i].Error = err.Error()
 			} else if link, isURL := v.(string); isURL && strings.HasPrefix(link, "http") {
+				link = httpsifyURL(link)
 				if verr := verifyIfEnabled(ctx, link); verr != nil {
 					results[i].Error = "直链校验不通过：" + verr.Error()
 				} else {

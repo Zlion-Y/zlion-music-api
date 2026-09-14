@@ -24,11 +24,22 @@ import (
 	"time"
 )
 
+// 页面是 HTTPS，交给浏览器的直链也必须是 https：
+// 否则 <audio> 一加载 http 资源就被当混合内容拦掉，整页还会被标成"不安全"。
+// 升级后如果那个主机其实不支持 https，验证会失败，于是这个音源被判不可用——这正是我们要的。
+func httpsifyURL(link string) string {
+	if strings.HasPrefix(strings.ToLower(link), "http://") {
+		return "https://" + link[len("http://"):]
+	}
+	return link
+}
+
 // 返回 nil 表示这个直链可用；否则给出人能看懂的失败原因
 func verifyAudio(ctx context.Context, rawURL string) error {
 	if rawURL == "" {
 		return errors.New("空直链")
 	}
+	rawURL = httpsifyURL(rawURL)
 	timeout := cfg.VerifyTimeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second

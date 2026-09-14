@@ -1570,6 +1570,7 @@ func resolveURL(ctx context.Context, source, id, name, artist, quality string) (
 	// 2) 网易官方（免费曲可用；VIP 曲通常返回 null，需要音源脚本）
 	if source == "wy" && id != "" {
 		if link, err := wySongURL(ctx, id, quality); err == nil {
+			link = httpsifyURL(link)
 			if verr := verifyIfEnabled(ctx, link); verr != nil {
 				lastErr = fmt.Errorf("网易直链校验不通过: %w", verr)
 				debugf("网易直链校验不通过: %v", verr)

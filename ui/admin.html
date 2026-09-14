@@ -336,9 +336,10 @@ $('probe-out').addEventListener('click', async (ev) => {
   const play = ev.target.closest('button[data-play]');
   if (play) {
     const p = $('player');
-    p.src = play.dataset.play;
+    // 页面是 https：http 直链会被浏览器当混合内容拦掉（整页还会被标成"不安全"）
+    p.src = String(play.dataset.play || '').replace(/^http:\/\//i, 'https://');
     p.style.display = 'block';
-    p.play().catch(() => {});
+    p.play().catch((e) => log('试听失败：' + e.message, 'err'));
     return;
   }
   const btn = ev.target.closest('button[data-act]');
